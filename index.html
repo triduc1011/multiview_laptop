@@ -3,127 +3,325 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TRIDUC HTTP MONITOR</title>
+    <title>PRO MONITOR | TriDuc Media</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.0/hls.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
     <style>
+        :root {
+            --bg-color: #121212;
+            --panel-color: #1e1e1e;
+            --accent-color: #00bcd4; /* Màu xanh Cyan công nghệ */
+            --text-color: #e0e0e0;
+        }
+
         body { 
-            background: #000; margin: 0; color: #fff; 
-            font-family: 'Segoe UI', sans-serif; 
+            background: var(--bg-color); margin: 0; color: var(--text-color); 
+            font-family: 'Segoe UI', Arial, sans-serif; 
             display: flex; flex-direction: column; height: 100vh; overflow: hidden;
         }
-        
-        /* Header cảnh báo HTTP */
+
+        /* HEADER CONTROL PANEL */
         header { 
-            padding: 5px 15px; background: #222; 
-            display: flex; gap: 10px; border-bottom: 2px solid #ff0000; /* Màu đỏ cảnh báo không bảo mật */
-            align-items: center; justify-content: space-between; height: 40px;
+            padding: 0 15px; height: 50px; background: var(--panel-color); 
+            display: flex; align-items: center; justify-content: space-between; 
+            border-bottom: 2px solid var(--accent-color);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
         }
-        
-        .brand { font-weight: bold; color: #fff; text-transform: uppercase; font-size: 14px; }
-        .server-info { color: #ff5555; font-size: 11px; font-family: monospace; font-weight: bold;}
-        
+
+        .group-left { display: flex; align-items: center; gap: 15px; }
+        .group-right { display: flex; align-items: center; gap: 5px; }
+
+        h2 { margin: 0; font-size: 16px; color: var(--accent-color); text-transform: uppercase; letter-spacing: 1px; }
+
+        /* BUTTON STYLES */
         button { 
-            cursor: pointer; padding: 4px 10px; background: #333; color: #fff; 
-            border: 1px solid #555; border-radius: 4px; font-size: 11px;
+            cursor: pointer; padding: 6px 12px; background: #333; color: #fff; 
+            border: 1px solid #444; border-radius: 4px; font-size: 12px; transition: 0.2s;
+            display: flex; align-items: center; gap: 5px;
         }
-        button:hover { background: #ff0000; color: #fff; border-color: #ff0000; }
+        button:hover { background: #444; border-color: var(--accent-color); }
+        button.active { background: var(--accent-color); color: #000; font-weight: bold; }
         
+        .page-control { font-family: monospace; font-size: 14px; margin: 0 5px; color: var(--accent-color); }
+
+        /* GRID SYSTEM */
         #video-grid { 
             flex-grow: 1; display: grid; 
-            grid-template-columns: repeat(4, 1fr); 
-            grid-template-rows: repeat(5, 1fr); 
-            gap: 1px; padding: 1px;
+            gap: 2px; padding: 2px; background: #000;
+            overflow: hidden;
         }
-        
+        /* Các Class Layout */
+        .layout-2x2 { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); }
+        .layout-3x3 { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); }
+        .layout-4x4 { grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); }
+
+        /* CAMERA BOX */
         .cam-box { 
-            position: relative; background: #111; border: 1px solid #222; 
-            overflow: hidden; display: flex; align-items: center; justify-content: center;
+            position: relative; background: #000; border: 1px solid #333; 
+            display: flex; align-items: center; justify-content: center; overflow: hidden;
         }
-        
-        video { width: 100%; height: 100%; object-fit: contain; }
-        
-        .label { 
+
+        /* VIDEO PLAYER (VLC STYLE) */
+        video { 
+            width: 100%; height: 100%; object-fit: contain; 
+            outline: none; 
+        }
+
+        /* LABELS & OVERLAYS */
+        .cam-label { 
             position: absolute; top: 0; left: 0; 
-            background: rgba(0,0,0,0.7); padding: 2px 6px; 
-            font-size: 11px; color: #fff; z-index: 2; font-weight: bold;
+            background: rgba(0,0,0,0.6); padding: 4px 8px; 
+            font-size: 12px; color: var(--accent-color); font-weight: bold; 
+            z-index: 5; pointer-events: none; border-bottom-right-radius: 5px;
         }
+
+        /* Bảng thông số kỹ thuật (Stats for Nerds) */
+        .stats-panel {
+            position: absolute; top: 30px; left: 5px;
+            background: rgba(0, 0, 0, 0.85); color: #0f0;
+            padding: 5px; font-family: 'Consolas', monospace; font-size: 10px;
+            border: 1px solid #333; border-radius: 4px;
+            z-index: 10; pointer-events: none;
+            display: none; /* Mặc định ẩn */
+            line-height: 1.4; text-align: left;
+            min-width: 120px;
+        }
+        .stats-panel span { color: #fff; }
         
-        .status-msg { 
-            position: absolute; color: #666; font-size: 11px; 
-            text-align: center; font-family: monospace;
+        /* Hiệu ứng nhấp nháy khi Live */
+        .rec-dot {
+            display: inline-block; width: 8px; height: 8px; 
+            background: red; border-radius: 50%; margin-right: 5px;
+            animation: blink 1s infinite;
         }
+        @keyframes blink { 50% { opacity: 0; } }
+
     </style>
 </head>
 <body>
+
     <header>
-        <div>
-            <span class="brand">TriDuc Media</span>
-            <span class="server-info"> | HTTP MODE (Not Secure)</span>
+        <div class="group-left">
+            <h2><i class="fas fa-network-wired"></i> TriDuc Monitor</h2>
+            
+            <div style="display: flex; gap: 2px;">
+                <button onclick="changeLayout(4)" id="btn-2x2"><i class="fas fa-th-large"></i> 2x2</button>
+                <button onclick="changeLayout(9)" id="btn-3x3"><i class="fas fa-th"></i> 3x3</button>
+                <button onclick="changeLayout(16)" id="btn-4x4" class="active"><i class="fas fa-border-all"></i> 4x4</button>
+            </div>
         </div>
-        <button onclick="location.reload()">Reload</button>
+
+        <div class="group-right">
+            <button onclick="toggleStats()" id="btn-stats"><i class="fas fa-chart-line"></i> Info/Stats</button>
+            
+            <button onclick="changePage(-1)"><i class="fas fa-chevron-left"></i></button>
+            <span id="page-display" class="page-control">1/1</span>
+            <button onclick="changePage(1)"><i class="fas fa-chevron-right"></i></button>
+            
+            <button onclick="location.reload()" title="Refresh"><i class="fas fa-sync-alt"></i></button>
+        </div>
     </header>
-    
-    <div id="video-grid"></div>
+
+    <div id="video-grid" class="layout-4x4"></div>
 
     <script>
-        // 👇 CẤU HÌNH ĐÚNG YÊU CẦU CỦA BẠN (HTTP + PORT 5003)
+        // === CẤU HÌNH SERVER ===
         const SERVER_HOST = 'http://triducmedia.ddns.net:5003';
         
-        // Danh sách kênh (Bao gồm studio2)
+        // === DANH SÁCH 18 KÊNH ===
         const STREAMS = [
             'source', 'source1', 'source2', 'source3', 'source4', 'source5',
-            'studio1', 'studio2', // <-- Kênh bạn vừa yêu cầu nằm ở đây
+            'studio1', 'studio2',
             'laptop1', 'laptop2', 'laptop3', 'laptop4', 'laptop5', 
             'laptop6', 'laptop7', 'laptop8', 'laptop9', 'laptop10'
         ];
 
+        // Biến toàn cục quản lý trạng thái
+        let currentLayout = 16; // Mặc định 4x4
+        let currentPage = 1;
+        let showStats = false;
+        let hlsInstances = {}; // Lưu các instance HLS để quản lý bộ nhớ
+        let statsInterval = null;
+
         document.addEventListener("DOMContentLoaded", () => {
+            renderGrid();
+            // Cập nhật thông số kỹ thuật mỗi 1 giây
+            statsInterval = setInterval(updateStatsData, 1000);
+        });
+
+        // Hàm vẽ giao diện Grid
+        function renderGrid() {
             const grid = document.getElementById('video-grid');
-            STREAMS.forEach(name => {
+            grid.innerHTML = ''; // Xóa grid cũ
+            
+            // Tính toán trang
+            const totalStreams = STREAMS.length;
+            const totalPages = Math.ceil(totalStreams / currentLayout);
+            if (currentPage > totalPages) currentPage = totalPages;
+            if (currentPage < 1) currentPage = 1;
+            
+            document.getElementById('page-display').innerText = `${currentPage}/${totalPages}`;
+
+            const startIdx = (currentPage - 1) * currentLayout;
+            const endIdx = Math.min(startIdx + currentLayout, totalStreams);
+
+            // Tạo các ô camera
+            for (let i = startIdx; i < startIdx + currentLayout; i++) {
+                // Nếu hết stream thì tạo ô trống hoặc dừng
+                if (i >= STREAMS.length) {
+                    const emptyDiv = document.createElement('div');
+                    emptyDiv.className = 'cam-box';
+                    emptyDiv.innerHTML = `<span style="color:#333">NO SIGNAL</span>`;
+                    grid.appendChild(emptyDiv);
+                    continue;
+                }
+
+                const name = STREAMS[i];
                 const div = document.createElement('div');
                 div.className = 'cam-box';
                 div.innerHTML = `
-                    <div class="label">${name.toUpperCase()}</div>
-                    <div class="status-msg" id="msg-${name}">Connecting...</div>
-                    <video id="v-${name}" muted playsinline autoplay></video>
+                    <div class="cam-label"><span class="rec-dot"></span>${name.toUpperCase()}</div>
+                    
+                    <div class="stats-panel" id="stats-${name}">
+                        RES: <span id="res-${name}">--x--</span><br>
+                        BUF: <span id="buf-${name}">0s</span><br>
+                        BIT: <span id="bit-${name}">0 kbps</span><br>
+                        FPS: <span id="fps-${name}">--</span>
+                    </div>
+
+                    <video id="vid-${name}" controls muted playsinline preload="auto"></video>
                 `;
                 grid.appendChild(div);
-                load(name);
-            });
-        });
-
-        function load(name) {
-            const video = document.getElementById(`v-${name}`);
-            const msgDiv = document.getElementById(`msg-${name}`);
+                
+                // Khởi tạo luồng
+                loadStream(name);
+            }
             
-            // Đường dẫn ghép thành: http://triducmedia.ddns.net:5003/hls/studio2/index.m3u8
+            // Áp dụng chế độ hiển thị stats nếu đang bật
+            toggleStatsDisplay();
+        }
+
+        function loadStream(name) {
+            const video = document.getElementById(`vid-${name}`);
             const url = `${SERVER_HOST}/hls/${name}/index.m3u8`;
 
-            video.onplaying = () => { msgDiv.style.display = 'none'; };
-            video.onwaiting = () => { msgDiv.style.display = 'block'; msgDiv.innerText = "Buffering..."; };
-            
-            video.onerror = () => {
-                msgDiv.style.display = 'block';
-                msgDiv.innerText = "OFFLINE";
-                msgDiv.style.color = "red";
-            };
+            if (Hls.isSupported()) {
+                // Hủy instance cũ nếu có
+                if (hlsInstances[name]) hlsInstances[name].destroy();
 
-            if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                video.src = url;
-            } else if (Hls.isSupported()) {
                 const hls = new Hls({
-                    capLevelToPlayerSize: true,
-                    maxBufferLength: 10,
+                    // === CẤU HÌNH ỔN ĐỊNH CAO (STABLE CONFIG) ===
+                    maxBufferLength: 30,         // Buffer tới 30s (Tránh lag)
+                    maxMaxBufferLength: 60,      // Max 60s
+                    enableWorker: true,          // Dùng đa luồng xử lý
+                    capLevelToPlayerSize: true,  // Tự giảm độ phân giải nếu ô nhỏ (Tiết kiệm băng thông)
+                    autoStartLoad: true
                 });
+
                 hls.loadSource(url);
                 hls.attachMedia(video);
-                hls.on(Hls.Events.ERROR, (event, data) => {
+                hlsInstances[name] = hls;
+
+                // Tự động khôi phục nếu lỗi mạng
+                hls.on(Hls.Events.ERROR, function (event, data) {
                     if (data.fatal) {
-                         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
+                        switch (data.type) {
+                            case Hls.ErrorTypes.NETWORK_ERROR:
+                                console.log("Network error, recovering...");
+                                hls.startLoad();
+                                break;
+                            case Hls.ErrorTypes.MEDIA_ERROR:
+                                hls.recoverMediaError();
+                                break;
+                            default:
+                                hls.destroy();
+                                break;
+                        }
                     }
                 });
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                // Cho Safari (iOS)
+                video.src = url;
+            }
+            
+            // Tự động play
+            video.play().catch(e => console.log("Autoplay prevented"));
+        }
+
+        // Hàm cập nhật thông số kỹ thuật (Stats for Nerds)
+        function updateStatsData() {
+            if (!showStats) return;
+
+            // Lặp qua các luồng đang hiển thị
+            const startIdx = (currentPage - 1) * currentLayout;
+            for (let i = startIdx; i < startIdx + currentLayout; i++) {
+                if (i >= STREAMS.length) break;
+                const name = STREAMS[i];
+                
+                const video = document.getElementById(`vid-${name}`);
+                if (!video) continue;
+
+                // 1. Resolution
+                const resEl = document.getElementById(`res-${name}`);
+                if (resEl) resEl.innerText = `${video.videoWidth}x${video.videoHeight}`;
+
+                // 2. Buffer & Bitrate (Chỉ lấy được nếu dùng Hls.js)
+                const hls = hlsInstances[name];
+                if (hls && hls.url) {
+                    // Buffer length
+                    const bufEl = document.getElementById(`buf-${name}`);
+                    const bufLen = video.buffered.length ? (video.buffered.end(video.buffered.length-1) - video.currentTime) : 0;
+                    if(bufEl) bufEl.innerText = `${bufLen.toFixed(1)}s`;
+
+                    // Bitrate (Level bitrate)
+                    const bitEl = document.getElementById(`bit-${name}`);
+                    if (hls.levels && hls.currentLevel !== -1 && hls.levels[hls.currentLevel]) {
+                        const bitrate = (hls.levels[hls.currentLevel].bitrate / 1024).toFixed(0);
+                        if(bitEl) bitEl.innerText = `${bitrate} kbps`;
+                    }
+                }
             }
         }
+
+        // Chức năng chuyển Layout
+        function changeLayout(num) {
+            currentLayout = num;
+            currentPage = 1; // Về trang 1 khi đổi layout
+            
+            // Đổi class CSS cho Grid
+            const grid = document.getElementById('video-grid');
+            grid.className = num === 4 ? 'layout-2x2' : num === 9 ? 'layout-3x3' : 'layout-4x4';
+            
+            // Cập nhật nút active
+            document.querySelectorAll('button[id^="btn-"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`btn-${num === 4 ? '2x2' : num === 9 ? '3x3' : '4x4'}`).classList.add('active');
+            
+            // Render lại
+            renderGrid();
+        }
+
+        // Chức năng chuyển trang
+        function changePage(delta) {
+            const totalPages = Math.ceil(STREAMS.length / currentLayout);
+            if (currentPage + delta >= 1 && currentPage + delta <= totalPages) {
+                currentPage += delta;
+                renderGrid();
+            }
+        }
+
+        // Chức năng Bật/Tắt Stats
+        function toggleStats() {
+            showStats = !showStats;
+            document.getElementById('btn-stats').classList.toggle('active');
+            toggleStatsDisplay();
+        }
+
+        function toggleStatsDisplay() {
+            const stats = document.querySelectorAll('.stats-panel');
+            stats.forEach(el => el.style.display = showStats ? 'block' : 'none');
+        }
+
     </script>
 </body>
 </html>
