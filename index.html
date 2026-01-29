@@ -2,218 +2,402 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DEBUG MONITOR | TriDuc Media</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TRIDUC ULTIMATE MONITOR</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.0/hls.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <style>
+        :root {
+            --bg-color: #0d0d0d;
+            --panel-color: #1a1a1a;
+            --accent-color: #00ff88;
+            --danger-color: #ff3333;
+            --text-gray: #b0b0b0;
+        }
+
         body { 
-            background: #000; margin: 0; color: #fff; 
-            font-family: 'Consolas', 'Segoe UI', monospace; /* Font monospace để giống coder */
+            background: var(--bg-color); margin: 0; color: #fff; 
+            font-family: 'Segoe UI', Arial, sans-serif; 
             display: flex; flex-direction: column; height: 100vh; overflow: hidden;
         }
 
-        /* HEADER */
+        /* HEADER CONTROL PANEL */
         header { 
-            padding: 5px 10px; background: #222; border-bottom: 2px solid #ffff00;
-            display: flex; justify-content: space-between; align-items: center; height: 40px;
+            padding: 0 10px; height: 50px; background: var(--panel-color); 
+            display: flex; align-items: center; justify-content: space-between; 
+            border-bottom: 2px solid var(--accent-color); z-index: 100;
         }
-        
-        button { 
-            cursor: pointer; padding: 4px 8px; background: #444; color: #fff; 
-            border: 1px solid #666; font-size: 11px; margin-left: 5px;
-        }
-        button.active { background: #ffff00; color: #000; font-weight: bold; }
 
-        /* GRID */
-        #video-grid { 
-            flex-grow: 1; display: grid; gap: 2px; padding: 2px; background: #111; overflow: hidden;
+        .controls-group { display: flex; gap: 8px; align-items: center; }
+
+        /* BUTTONS & SELECTS STYLE */
+        button, select { 
+            cursor: pointer; padding: 6px 10px; background: #333; color: #fff; 
+            border: 1px solid #555; border-radius: 4px; font-size: 12px; outline: none;
+            display: flex; align-items: center; gap: 5px;
         }
+        button:hover, select:hover { border-color: var(--accent-color); background: #444; }
+        button.active { background: var(--accent-color); color: #000; font-weight: bold; border-color: var(--accent-color); }
+        
+        select { -webkit-appearance: none; appearance: none; padding-right: 20px; }
+
+        /* MENU LỌC CAMERA (MODAL) */
+        #filter-modal {
+            position: absolute; top: 55px; left: 10px;
+            background: rgba(20, 20, 20, 0.95); border: 1px solid #555;
+            padding: 15px; border-radius: 6px; z-index: 200;
+            display: none; width: 220px; max-height: 80vh; overflow-y: auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            backdrop-filter: blur(5px);
+        }
+        .filter-header { border-bottom:1px solid #444; padding-bottom:5px; margin-bottom:10px; font-weight:bold; color:var(--accent-color); font-size: 13px;}
+        .filter-item { display: block; margin-bottom: 8px; font-size: 13px; cursor: pointer; user-select: none; }
+        .filter-item input { margin-right: 10px; accent-color: var(--accent-color); transform: scale(1.2); }
+
+        /* GRID SYSTEM */
+        #video-grid { 
+            flex-grow: 1; display: grid; gap: 2px; padding: 2px; background: #000; overflow: hidden;
+        }
+        .layout-2x2 { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); }
+        .layout-3x3 { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); }
         .layout-4x4 { grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); }
 
+        /* CAMERA BOX */
         .cam-box { 
-            position: relative; background: #000; border: 1px solid #333; 
+            position: relative; background: #000; border: 1px solid #222; 
             display: flex; align-items: center; justify-content: center; overflow: hidden;
         }
         video { width: 100%; height: 100%; object-fit: contain; }
 
-        /* THÔNG SỐ KỸ THUẬT (STATS) */
-        .stats-panel {
-            position: absolute; top: 0; left: 0;
-            background: rgba(0, 0, 0, 0.7); color: #0f0;
-            padding: 5px; font-size: 10px; pointer-events: none; z-index: 10;
-            line-height: 1.3; min-width: 80px;
-            /* Mặc định hiện luôn để bạn check lỗi */
-            display: block; 
+        /* OVERLAYS */
+        .cam-label { 
+            position: absolute; top: 0; left: 0; 
+            background: rgba(0,0,0,0.7); padding: 4px 8px; 
+            font-size: 12px; color: var(--accent-color); font-weight: bold; 
+            z-index: 5; pointer-events: none; border-bottom-right-radius: 4px;
         }
 
-        /* LOG BOX (Để xem lỗi) */
-        #debug-log {
-            position: fixed; bottom: 0; left: 0; width: 100%; height: 100px;
-            background: rgba(0,0,0,0.9); border-top: 1px solid #666;
-            overflow-y: scroll; font-size: 11px; padding: 5px; box-sizing: border-box;
-            display: none; z-index: 999; color: #ccc;
+        /* BẢNG THÔNG SỐ (STATS) */
+        .stats-overlay {
+            position: absolute; top: 30px; left: 5px;
+            background: rgba(0, 0, 0, 0.8); color: #0f0;
+            padding: 5px 8px; font-family: 'Consolas', monospace; font-size: 11px;
+            border: 1px solid #444; border-radius: 4px;
+            z-index: 20; pointer-events: none; display: none;
+            line-height: 1.4; text-align: left;
+            min-width: 90px;
         }
-        .log-err { color: #ff5555; }
-        .log-info { color: #55ffff; }
-        .log-ok { color: #55ff55; }
+        .stats-overlay span { color: #fff; }
+
+        /* MÀN HÌNH BÁO LỖI/NGẮT LUỒNG */
+        .error-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #111; z-index: 10; display: none;
+            flex-direction: column; align-items: center; justify-content: center;
+        }
+        .error-content { text-align: center; color: var(--danger-color); }
+        .error-icon { font-size: 24px; margin-bottom: 10px; opacity: 0.8; }
+        .btn-retry { 
+            margin-top: 15px; background: #333; color: #fff; border: 1px solid #555; 
+            padding: 5px 15px; font-size: 12px; display: inline-block;
+        }
+        .btn-retry:hover { background: var(--accent-color); color: #000; border-color: var(--accent-color); }
 
     </style>
 </head>
 <body>
 
     <header>
-        <div style="color: #ffff00; font-weight: bold;">TRIDUC DEBUG MODE</div>
-        <div>
-            <span id="status-text" style="font-size: 11px; color: #aaa; margin-right: 10px;">Init...</span>
-            <button onclick="toggleLog()">Toggle Log</button>
-            <button onclick="location.reload()">Reload</button>
+        <div class="controls-group">
+            <strong style="color:var(--accent-color); font-size: 14px; margin-right: 5px;">TRIDUC</strong>
+            
+            <button onclick="toggleFilterMenu()" id="btn-filter" title="Bật tắt camera"><i class="fas fa-tasks"></i> Cam List</button>
+            
+            <button onclick="toggleStats()" id="btn-stats" title="Xem chi tiết Video/Audio"><i class="fas fa-info-circle"></i> Stats</button>
+
+            <select id="quality-select" onchange="changeQuality(this.value)" title="Chọn độ phân giải">
+                <option value="-1">Auto (Gốc)</option>
+                <option value="1080">Full HD 1080p</option>
+                <option value="720">HD 720p</option>
+                <option value="480">SD 480p</option>
+            </select>
+        </div>
+
+        <div class="controls-group">
+            <button onclick="setLayout(4)" id="btn-2x2">2x2</button>
+            <button onclick="setLayout(9)" id="btn-3x3">3x3</button>
+            <button onclick="setLayout(16)" id="btn-4x4" class="active">4x4</button>
+            <button onclick="location.reload()" title="Tải lại toàn bộ"><i class="fas fa-sync-alt"></i></button>
         </div>
     </header>
 
+    <div id="filter-modal">
+        <div class="filter-header">DANH SÁCH CAMERA</div>
+        <div id="checklist-container"></div>
+    </div>
+
     <div id="video-grid" class="layout-4x4"></div>
-    
-    <div id="debug-log"></div>
 
     <script>
-        // === CẤU HÌNH SERVER ===
+        // === CẤU HÌNH SERVER (KHÔNG ĐỔI) ===
         const SERVER_HOST = 'http://triducmedia.ddns.net:5003';
         
-        const STREAMS = [
+        const MASTER_LIST = [
             'source', 'source1', 'source2', 'source3', 'source4', 'source5',
             'studio1', 'studio2',
             'laptop1', 'laptop2', 'laptop3', 'laptop4', 'laptop5', 
             'laptop6', 'laptop7', 'laptop8', 'laptop9', 'laptop10'
         ];
 
-        let hlsInstances = {}; 
+        // Biến toàn cục
+        let activeStreams = [...MASTER_LIST]; // Danh sách cam đang bật
+        let hlsInstances = {}; // Lưu trữ bộ nhớ HLS
+        let currentLayout = 16;
+        let preferredHeight = -1; // -1 là Auto
+        let showStats = false;
+        let statsInterval = null;
 
         document.addEventListener("DOMContentLoaded", () => {
-            log("System started...", "log-info");
-            
-            // Cảnh báo nếu dùng HTTPS cho link HTTP
-            if (location.protocol === 'https:' && SERVER_HOST.includes('http:')) {
-                log("CRITICAL ERROR: Bạn đang mở Web bằng HTTPS nhưng Link Camera là HTTP. Trình duyệt sẽ chặn! Hãy mở bằng http:// hoặc cài SSL cho server.", "log-err");
-                alert("LỖI GIAO THỨC: Không thể xem HTTP trên nền HTTPS.");
-            }
-
+            initFilterMenu();
             renderGrid();
-            
-            // Cập nhật thông số mỗi giây
-            setInterval(updateStats, 1000);
+            // Cập nhật thông số mỗi giây (nếu đang bật stats)
+            statsInterval = setInterval(updateStatsData, 1000); 
         });
 
-        function log(msg, type="log-ok") {
-            const box = document.getElementById('debug-log');
-            const line = document.createElement('div');
-            line.className = type;
-            const time = new Date().toLocaleTimeString();
-            line.innerText = `[${time}] ${msg}`;
-            box.prepend(line); // Thêm vào đầu
-        }
-
-        function toggleLog() {
-            const box = document.getElementById('debug-log');
-            box.style.display = box.style.display === 'block' ? 'none' : 'block';
-        }
-
+        // --- 1. QUẢN LÝ GRID VÀ LOAD STREAM ---
         function renderGrid() {
             const grid = document.getElementById('video-grid');
-            // Chỉ lấy 16 luồng đầu tiên cho layout 4x4
-            const displayList = STREAMS.slice(0, 16);
+            grid.innerHTML = '';
+            
+            // Dọn dẹp HLS cũ để giải phóng RAM
+            Object.values(hlsInstances).forEach(h => h.destroy());
+            hlsInstances = {};
+
+            // Chỉ lấy số lượng cam phù hợp với layout hiện tại
+            const displayList = activeStreams.slice(0, currentLayout);
 
             displayList.forEach(name => {
                 const div = document.createElement('div');
                 div.className = 'cam-box';
                 div.innerHTML = `
-                    <div class="stats-panel">
-                        <span style="color:#fff; font-weight:bold">${name.toUpperCase()}</span><br>
-                        RES: <span id="res-${name}">waiting...</span><br>
-                        BUF: <span id="buf-${name}">0s</span>
+                    <div class="cam-label">${name.toUpperCase()}</div>
+                    
+                    <div class="stats-overlay" id="stats-${name}">
+                        RES: <span id="res-${name}">--</span><br>
+                        BUF: <span id="buf-${name}">--</span><br>
+                        BIT: <span id="bit-${name}">--</span><br>
+                        FPS: <span id="fps-${name}">--</span>
                     </div>
+
+                    <div class="error-screen" id="err-${name}">
+                        <div class="error-content">
+                            <div class="error-icon"><i class="fas fa-video-slash"></i></div>
+                            <div style="font-weight:bold">NO SIGNAL</div>
+                            <div style="font-size:10px; margin-top:5px; color:#888" id="reason-${name}">Offline</div>
+                            <button class="btn-retry" onclick="retryStream('${name}')">Thử lại</button>
+                        </div>
+                    </div>
+
                     <video id="vid-${name}" controls muted playsinline></video>
                 `;
                 grid.appendChild(div);
                 loadStream(name);
             });
+            
+            toggleStatsDisplay();
         }
 
         function loadStream(name) {
             const video = document.getElementById(`vid-${name}`);
+            const errScreen = document.getElementById(`err-${name}`);
             const url = `${SERVER_HOST}/hls/${name}/index.m3u8`;
+
+            // Ẩn lỗi nếu đang load lại
+            errScreen.style.display = 'none';
 
             if (Hls.isSupported()) {
                 const hls = new Hls({
                     capLevelToPlayerSize: true,
-                    maxBufferLength: 30
+                    // CẤU HÌNH ỔN ĐỊNH: Buffer 30s
+                    maxBufferLength: 30, 
+                    maxMaxBufferLength: 60,
                 });
+                
                 hls.loadSource(url);
                 hls.attachMedia(video);
                 hlsInstances[name] = hls;
+                
+                // Áp dụng chất lượng nếu đã chọn
+                applyQuality(hls);
 
-                hls.on(Hls.Events.ERROR, (e, data) => {
+                // === XỬ LÝ LỖI NGHIÊM NGẶT (KILL SWITCH) ===
+                hls.on(Hls.Events.ERROR, function (event, data) {
+                    
+                    // 1. Kiểm tra lỗi 404/403 (Không tìm thấy luồng) -> DỪNG VĨNH VIỄN
+                    if (data.response && (data.response.code === 404 || data.response.code === 403)) {
+                        stopStream(name, "Stream Not Found (404)");
+                        return;
+                    }
+
+                    // 2. Các lỗi Fatal khác
                     if (data.fatal) {
-                        log(`${name}: HLS Error - ${data.type}`, "log-err");
-                        if (data.response && data.response.code === 404) {
-                            log(`${name}: Stream not found (404)`, "log-err");
-                            hls.destroy();
-                        } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                            hls.startLoad();
+                        switch (data.type) {
+                            case Hls.ErrorTypes.NETWORK_ERROR:
+                                // Mất mạng: Thử lại 1 lần, nếu vẫn lỗi thì Hls.js sẽ báo tiếp
+                                console.log(`${name}: Network error... recovering`);
+                                hls.startLoad(); 
+                                break;
+                            case Hls.ErrorTypes.MEDIA_ERROR:
+                                hls.recoverMediaError();
+                                break;
+                            default:
+                                stopStream(name, "Fatal Error");
+                                break;
                         }
                     }
                 });
-            } 
-            else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                // Safari / Native Player
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                // Safari (iOS)
                 video.src = url;
-                log(`${name}: Using Native Player`, "log-info");
+                video.onerror = () => stopStream(name, "iOS Connection Failed");
             }
             
-            video.play().catch(e => log(`${name}: Autoplay block`, "log-err"));
+            video.play().catch(()=>{});
         }
 
-        // === HÀM CẬP NHẬT STATS (Đã Fix) ===
-        function updateStats() {
-            // Lặp qua danh sách tên luồng thay vì hlsInstance
-            const displayList = STREAMS.slice(0, 16);
+        // Hàm ngắt luồng hoàn toàn
+        function stopStream(name, reason) {
+            console.warn(`STOPPING STREAM: ${name} due to ${reason}`);
             
-            displayList.forEach(name => {
+            // Hủy kết nối HLS -> Giải phóng mạng
+            if (hlsInstances[name]) {
+                hlsInstances[name].destroy();
+                delete hlsInstances[name];
+            }
+
+            // Hiện màn hình lỗi
+            const errScreen = document.getElementById(`err-${name}`);
+            const reasonTxt = document.getElementById(`reason-${name}`);
+            if (errScreen) errScreen.style.display = 'flex';
+            if (reasonTxt) reasonTxt.innerText = reason;
+        }
+
+        // Thử kết nối lại thủ công
+        function retryStream(name) {
+            loadStream(name);
+        }
+
+        // --- 2. QUẢN LÝ THÔNG SỐ (STATS) ---
+        function toggleStats() {
+            showStats = !showStats;
+            document.getElementById('btn-stats').classList.toggle('active');
+            toggleStatsDisplay();
+        }
+
+        function toggleStatsDisplay() {
+            const overlays = document.querySelectorAll('.stats-overlay');
+            overlays.forEach(el => el.style.display = showStats ? 'block' : 'none');
+        }
+
+        function updateStatsData() {
+            if (!showStats) return;
+
+            // Quét qua tất cả video đang hiện
+            activeStreams.slice(0, currentLayout).forEach(name => {
                 const video = document.getElementById(`vid-${name}`);
                 if (!video) return;
 
-                // 1. Cập nhật Độ phân giải (Resolution)
-                // Lấy trực tiếp từ thẻ Video (Chuẩn nhất cho mọi trình duyệt)
+                // 1. Resolution (Lấy từ thẻ video - chuẩn nhất)
                 const resEl = document.getElementById(`res-${name}`);
                 if (video.videoWidth > 0) {
                     resEl.innerText = `${video.videoWidth}x${video.videoHeight}`;
-                    resEl.style.color = "#0f0";
                 } else {
-                    resEl.innerText = "No Signal";
-                    resEl.style.color = "#888";
+                    resEl.innerText = "Waiting...";
                 }
-
-                // 2. Cập nhật Buffer
+                
+                // 2. Buffer (Sức khỏe đường truyền)
                 const bufEl = document.getElementById(`buf-${name}`);
-                if (video.buffered.length > 0) {
-                    // Tính toán buffer an toàn
-                    try {
-                        const current = video.currentTime;
-                        const end = video.buffered.end(video.buffered.length - 1);
-                        const bufferLen = end - current;
-                        
-                        bufEl.innerText = `${bufferLen.toFixed(1)}s`;
-                        // Đổi màu cảnh báo nếu buffer thấp
-                        bufEl.style.color = bufferLen < 5 ? 'red' : '#0f0';
-                    } catch (e) {
-                        bufEl.innerText = "Err";
-                    }
+                if(video.buffered.length > 0) {
+                    const bufLen = video.buffered.end(video.buffered.length-1) - video.currentTime;
+                    bufEl.innerText = `${bufLen.toFixed(1)}s`;
+                    bufEl.style.color = bufLen < 5 ? '#ff4444' : '#00ff88'; // Đỏ nếu < 5s
                 } else {
                     bufEl.innerText = "0s";
-                    bufEl.style.color = "red";
+                }
+
+                // 3. Bitrate & FPS (Chỉ lấy được từ HLS.js)
+                const hls = hlsInstances[name];
+                if (hls && hls.levels && hls.currentLevel !== -1 && hls.levels[hls.currentLevel]) {
+                    const lvl = hls.levels[hls.currentLevel];
+                    // Bitrate
+                    document.getElementById(`bit-${name}`).innerText = `${(lvl.bitrate / 1024).toFixed(0)} kbps`;
+                    // FPS (Ước lượng từ Codec hoặc Metadata)
+                    if(lvl.videoCodec) document.getElementById(`fps-${name}`).innerText = lvl.videoCodec.split('.')[0];
                 }
             });
         }
+
+        // --- 3. MENU LỌC & LAYOUT ---
+        function initFilterMenu() {
+            const container = document.getElementById('checklist-container');
+            MASTER_LIST.forEach(name => {
+                const div = document.createElement('label');
+                div.className = 'filter-item';
+                div.innerHTML = `<input type="checkbox" checked onchange="toggleStream('${name}', this.checked)"> ${name.toUpperCase()}`;
+                container.appendChild(div);
+            });
+        }
+
+        function toggleFilterMenu() {
+            const menu = document.getElementById('filter-modal');
+            const btn = document.getElementById('btn-filter');
+            const isHidden = menu.style.display === 'none' || menu.style.display === '';
+            menu.style.display = isHidden ? 'block' : 'none';
+            isHidden ? btn.classList.add('active') : btn.classList.remove('active');
+        }
+
+        function toggleStream(name, isChecked) {
+            if (isChecked) {
+                if (!activeStreams.includes(name)) activeStreams.push(name);
+            } else {
+                activeStreams = activeStreams.filter(s => s !== name);
+            }
+            // Sắp xếp lại theo thứ tự gốc
+            activeStreams.sort((a, b) => MASTER_LIST.indexOf(a) - MASTER_LIST.indexOf(b));
+            renderGrid();
+        }
+
+        function changeQuality(val) {
+            preferredHeight = parseInt(val);
+            Object.values(hlsInstances).forEach(h => applyQuality(h));
+        }
+
+        function applyQuality(hls) {
+            if (!hls || preferredHeight === -1) {
+                if(hls) hls.currentLevel = -1; // Auto
+                return;
+            }
+            let bestLevel = -1;
+            if (hls.levels) {
+                hls.levels.forEach((lvl, idx) => {
+                    // Tìm level có chiều cao <= mức chọn
+                    if (lvl.height <= preferredHeight) bestLevel = idx;
+                });
+                if (bestLevel === -1 && hls.levels.length > 0) bestLevel = 0; // Fallback
+                hls.currentLevel = bestLevel;
+            }
+        }
+
+        function setLayout(n) {
+            currentLayout = n;
+            document.getElementById('video-grid').className = `layout-${n===4?'2x2':n===9?'3x3':'4x4'}`;
+            // Update UI nút bấm
+            document.querySelectorAll('button[id^="btn-"]').forEach(b => b.classList.remove('active'));
+            document.getElementById(`btn-${n===4?'2x2':n===9?'3x3':'4x4'}`).classList.add('active');
+            renderGrid();
+        }
+
     </script>
 </body>
 </html>
