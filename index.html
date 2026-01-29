@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TRIDUC MEDIA | Monitor System</title>
+    <title>TRIDUC HTTP MONITOR</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.0/hls.min.js"></script>
     <style>
         body { 
@@ -12,30 +12,27 @@
             display: flex; flex-direction: column; height: 100vh; overflow: hidden;
         }
         
-        /* Header */
+        /* Header cảnh báo HTTP */
         header { 
-            padding: 5px 15px; background: #1a1a1a; 
-            display: flex; gap: 10px; border-bottom: 2px solid #00ff88; 
+            padding: 5px 15px; background: #222; 
+            display: flex; gap: 10px; border-bottom: 2px solid #ff0000; /* Màu đỏ cảnh báo không bảo mật */
             align-items: center; justify-content: space-between; height: 40px;
         }
         
-        .brand { font-weight: bold; color: #00ff88; text-transform: uppercase; font-size: 14px; }
-        .server-info { color: #888; font-size: 11px; font-family: monospace; }
+        .brand { font-weight: bold; color: #fff; text-transform: uppercase; font-size: 14px; }
+        .server-info { color: #ff5555; font-size: 11px; font-family: monospace; font-weight: bold;}
         
         button { 
             cursor: pointer; padding: 4px 10px; background: #333; color: #fff; 
             border: 1px solid #555; border-radius: 4px; font-size: 11px;
         }
-        button:hover { background: #00ff88; color: #000; border-color: #00ff88; }
+        button:hover { background: #ff0000; color: #fff; border-color: #ff0000; }
         
-        /* Lưới Video: Điều chỉnh thành 5 dòng để chứa đủ 18 kênh */
         #video-grid { 
             flex-grow: 1; display: grid; 
-            /* 4 cột, 5 dòng (Tổng 20 ô -> đủ cho 18 cam) */
             grid-template-columns: repeat(4, 1fr); 
             grid-template-rows: repeat(5, 1fr); 
-            gap: 1px; 
-            padding: 1px;
+            gap: 1px; padding: 1px;
         }
         
         .cam-box { 
@@ -48,7 +45,7 @@
         .label { 
             position: absolute; top: 0; left: 0; 
             background: rgba(0,0,0,0.7); padding: 2px 6px; 
-            font-size: 11px; color: #00ff88; z-index: 2; font-weight: bold;
+            font-size: 11px; color: #fff; z-index: 2; font-weight: bold;
         }
         
         .status-msg { 
@@ -61,24 +58,21 @@
     <header>
         <div>
             <span class="brand">TriDuc Media</span>
-            <span class="server-info"> | triducmedia.ddns.net:5003</span>
+            <span class="server-info"> | HTTP MODE (Not Secure)</span>
         </div>
-        <button onclick="location.reload()">Refresh Signal</button>
+        <button onclick="location.reload()">Reload</button>
     </header>
     
     <div id="video-grid"></div>
 
     <script>
-        // 👇 CẤU HÌNH SERVER MỚI (HTTPS)
-        const SERVER_HOST = 'https://triducmedia.ddns.net:5003';
+        // 👇 CẤU HÌNH ĐÚNG YÊU CẦU CỦA BẠN (HTTP + PORT 5003)
+        const SERVER_HOST = 'http://triducmedia.ddns.net:5003';
         
-        // 👇 CẬP NHẬT DANH SÁCH 18 LUỒNG
+        // Danh sách kênh (Bao gồm studio2)
         const STREAMS = [
-            // Nhóm Source (6 kênh)
             'source', 'source1', 'source2', 'source3', 'source4', 'source5',
-            // Nhóm Studio (2 kênh)
-            'studio1', 'studio2',
-            // Nhóm Laptop (10 kênh)
+            'studio1', 'studio2', // <-- Kênh bạn vừa yêu cầu nằm ở đây
             'laptop1', 'laptop2', 'laptop3', 'laptop4', 'laptop5', 
             'laptop6', 'laptop7', 'laptop8', 'laptop9', 'laptop10'
         ];
@@ -102,7 +96,7 @@
             const video = document.getElementById(`v-${name}`);
             const msgDiv = document.getElementById(`msg-${name}`);
             
-            // Đường dẫn HLS chuẩn
+            // Đường dẫn ghép thành: http://triducmedia.ddns.net:5003/hls/studio2/index.m3u8
             const url = `${SERVER_HOST}/hls/${name}/index.m3u8`;
 
             video.onplaying = () => { msgDiv.style.display = 'none'; };
@@ -110,39 +104,26 @@
             
             video.onerror = () => {
                 msgDiv.style.display = 'block';
-                msgDiv.innerText = "OFFLINE (404)";
+                msgDiv.innerText = "OFFLINE";
                 msgDiv.style.color = "red";
             };
 
-            // 1. Cấu hình cho iPhone/iPad (Native HLS)
             if (video.canPlayType('application/vnd.apple.mpegurl')) {
                 video.src = url;
-            } 
-            // 2. Cấu hình cho PC/Android (Hls.js)
-            else if (Hls.isSupported()) {
+            } else if (Hls.isSupported()) {
                 const hls = new Hls({
-                    capLevelToPlayerSize: true, // Tự chỉnh độ phân giải cho nhẹ
-                    maxBufferLength: 10,        // Buffer ngắn để giảm trễ
+                    capLevelToPlayerSize: true,
+                    maxBufferLength: 10,
                 });
                 hls.loadSource(url);
                 hls.attachMedia(video);
-                
                 hls.on(Hls.Events.ERROR, (event, data) => {
                     if (data.fatal) {
-                        // Tự động thử kết nối lại nếu rớt mạng
-                        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                            console.log(`Network error on ${name}, retrying...`);
-                            hls.startLoad();
-                        } else {
-                            msgDiv.style.display = 'block';
-                            msgDiv.innerText = "Stream Error";
-                            hls.destroy();
-                        }
+                         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
                     }
                 });
             }
         }
     </script>
 </body>
-
 </html>
