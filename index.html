@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TRIDUC ULTIMATE MONITOR</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.0/hls.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.3/hls.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <style>
@@ -13,7 +13,7 @@
             --panel-color: #1a1a1a;
             --accent-color: #00ff88;
             --danger-color: #ff3333;
-            --text-gray: #b0b0b0;
+            --hevc-color: #00e5ff;
         }
 
         body { 
@@ -35,7 +35,7 @@
         button, select { 
             cursor: pointer; padding: 6px 10px; background: #333; color: #fff; 
             border: 1px solid #555; border-radius: 4px; font-size: 12px; outline: none;
-            display: flex; align-items: center; gap: 5px;
+            display: flex; align-items: center; gap: 5px; transition: 0.2s;
         }
         button:hover, select:hover { border-color: var(--accent-color); background: #444; }
         button.active { background: var(--accent-color); color: #000; font-weight: bold; border-color: var(--accent-color); }
@@ -140,8 +140,8 @@
     <div id="video-grid" class="layout-4x4"></div>
 
     <script>
-        // === CẤU HÌNH SERVER (KHÔNG ĐỔI) ===
-        const SERVER_HOST = 'http://triducmedia.ddns.net:5003';
+        // === CẤU HÌNH SERVER ĐÃ SỬA THÀNH HTTPS CHUẨN ĐỂ ĐƯA LÊN GITHUB ===
+        const SERVER_HOST = 'https://triducmedia.ddns.net';
         
         const MASTER_LIST = [
             'source', 'source1', 'source2', 'source3', 'source4', 'source5',
@@ -151,60 +151,72 @@
         ];
 
         // Biến toàn cục
-        let activeStreams = [...MASTER_LIST]; // Danh sách cam đang bật
-        let hlsInstances = {}; // Lưu trữ bộ nhớ HLS
+        let activeStreams = [...MASTER_LIST];
+        let hlsInstances = {}; 
         let currentLayout = 16;
-        let preferredHeight = -1; // -1 là Auto
+        let preferredHeight = -1;
         let showStats = false;
         let statsInterval = null;
 
         document.addEventListener("DOMContentLoaded", () => {
             initFilterMenu();
             renderGrid();
-            // Cập nhật thông số mỗi giây (nếu đang bật stats)
             statsInterval = setInterval(updateStatsData, 1000); 
         });
 
-        // --- 1. QUẢN LÝ GRID VÀ LOAD STREAM ---
+        // --- 1. THUẬT TOÁN RENDER MỚI (TỐI ƯU HIỆU NĂNG) ---
         function renderGrid() {
             const grid = document.getElementById('video-grid');
-            grid.innerHTML = '';
-            
-            // Dọn dẹp HLS cũ để giải phóng RAM
-            Object.values(hlsInstances).forEach(h => h.destroy());
-            hlsInstances = {};
-
-            // Chỉ lấy số lượng cam phù hợp với layout hiện tại
             const displayList = activeStreams.slice(0, currentLayout);
 
-            displayList.forEach(name => {
-                const div = document.createElement('div');
-                div.className = 'cam-box';
-                div.innerHTML = `
-                    <div class="cam-label">${name.toUpperCase()}</div>
-                    
-                    <div class="stats-overlay" id="stats-${name}">
-                        RES: <span id="res-${name}">--</span><br>
-                        BUF: <span id="buf-${name}">--</span><br>
-                        BIT: <span id="bit-${name}">--</span><br>
-                        FPS: <span id="fps-${name}">--</span>
-                    </div>
-
-                    <div class="error-screen" id="err-${name}">
-                        <div class="error-content">
-                            <div class="error-icon"><i class="fas fa-video-slash"></i></div>
-                            <div style="font-weight:bold">NO SIGNAL</div>
-                            <div style="font-size:10px; margin-top:5px; color:#888" id="reason-${name}">Offline</div>
-                            <button class="btn-retry" onclick="retryStream('${name}')">Thử lại</button>
-                        </div>
-                    </div>
-
-                    <video id="vid-${name}" controls muted playsinline></video>
-                `;
-                grid.appendChild(div);
-                loadStream(name);
+            // 1. Dọn dẹp DOM và ngắt luồng của các cam bị ẩn (Không dọn những cam đang hiển thị)
+            Array.from(grid.children).forEach(box => {
+                const name = box.id.replace('box-', '');
+                if (!displayList.includes(name)) {
+                    stopStream(name, "Hidden");
+                    box.remove(); // Xóa khỏi giao diện
+                }
             });
-            
+
+            // 2. Thêm mới hoặc sắp xếp lại các cam cần hiển thị
+            displayList.forEach(name => {
+                let box = document.getElementById(`box-${name}`);
+                if (!box) {
+                    // Tạo mới nếu cam này chưa xuất hiện
+                    box = document.createElement('div');
+                    box.className = 'cam-box';
+                    box.id = `box-${name}`;
+                    box.innerHTML = `
+                        <div class="cam-label">${name.toUpperCase()}</div>
+                        
+                        <div class="stats-overlay" id="stats-${name}">
+                            RES: <span id="res-${name}">--</span><br>
+                            CODEC: <span id="codec-${name}">--</span><br>
+                            BUF: <span id="buf-${name}">--</span><br>
+                            BIT: <span id="bit-${name}">--</span>
+                        </div>
+
+                        <div class="error-screen" id="err-${name}">
+                            <div class="error-content">
+                                <div class="error-icon"><i class="fas fa-video-slash"></i></div>
+                                <div style="font-weight:bold">NO SIGNAL</div>
+                                <div style="font-size:10px; margin-top:5px; color:#888" id="reason-${name}">Offline</div>
+                                <button class="btn-retry" onclick="retryStream('${name}')">Thử lại</button>
+                            </div>
+                        </div>
+
+                        <video id="vid-${name}" controls muted playsinline></video>
+                    `;
+                    grid.appendChild(box);
+                    loadStream(name);
+                } else {
+                    // Nếu cam đã chạy, chỉ cần đưa nó xuống dưới cùng để giữ đúng thứ tự lưới
+                    grid.appendChild(box);
+                }
+            });
+
+            // Cập nhật class để chia cột cho đúng
+            grid.className = `layout-${currentLayout===4?'2x2':currentLayout===9?'3x3':'4x4'}`;
             toggleStatsDisplay();
         }
 
@@ -213,38 +225,34 @@
             const errScreen = document.getElementById(`err-${name}`);
             const url = `${SERVER_HOST}/hls/${name}/index.m3u8`;
 
-            // Ẩn lỗi nếu đang load lại
-            errScreen.style.display = 'none';
+            if(errScreen) errScreen.style.display = 'none';
 
             if (Hls.isSupported()) {
                 const hls = new Hls({
                     capLevelToPlayerSize: true,
-                    // CẤU HÌNH ỔN ĐỊNH: Buffer 30s
                     maxBufferLength: 30, 
                     maxMaxBufferLength: 60,
+                    enableWorker: true, // Xử lý đa luồng cho HEVC
                 });
                 
                 hls.loadSource(url);
                 hls.attachMedia(video);
                 hlsInstances[name] = hls;
-                
-                // Áp dụng chất lượng nếu đã chọn
                 applyQuality(hls);
 
-                // === XỬ LÝ LỖI NGHIÊM NGẶT (KILL SWITCH) ===
                 hls.on(Hls.Events.ERROR, function (event, data) {
-                    
-                    // 1. Kiểm tra lỗi 404/403 (Không tìm thấy luồng) -> DỪNG VĨNH VIỄN
+                    if (data.details === 'manifestIncompatibleCodecsError') {
+                        stopStream(name, "Lỗi Codec (Thiếu HEVC)");
+                        return;
+                    }
                     if (data.response && (data.response.code === 404 || data.response.code === 403)) {
                         stopStream(name, "Stream Not Found (404)");
                         return;
                     }
 
-                    // 2. Các lỗi Fatal khác
                     if (data.fatal) {
                         switch (data.type) {
                             case Hls.ErrorTypes.NETWORK_ERROR:
-                                // Mất mạng: Thử lại 1 lần, nếu vẫn lỗi thì Hls.js sẽ báo tiếp
                                 console.log(`${name}: Network error... recovering`);
                                 hls.startLoad(); 
                                 break;
@@ -258,37 +266,28 @@
                     }
                 });
             } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                // Safari (iOS)
                 video.src = url;
                 video.onerror = () => stopStream(name, "iOS Connection Failed");
             }
-            
             video.play().catch(()=>{});
         }
 
-        // Hàm ngắt luồng hoàn toàn
         function stopStream(name, reason) {
-            console.warn(`STOPPING STREAM: ${name} due to ${reason}`);
-            
-            // Hủy kết nối HLS -> Giải phóng mạng
             if (hlsInstances[name]) {
                 hlsInstances[name].destroy();
                 delete hlsInstances[name];
             }
-
-            // Hiện màn hình lỗi
             const errScreen = document.getElementById(`err-${name}`);
             const reasonTxt = document.getElementById(`reason-${name}`);
             if (errScreen) errScreen.style.display = 'flex';
             if (reasonTxt) reasonTxt.innerText = reason;
         }
 
-        // Thử kết nối lại thủ công
         function retryStream(name) {
             loadStream(name);
         }
 
-        // --- 2. QUẢN LÝ THÔNG SỐ (STATS) ---
+        // --- 2. QUẢN LÝ THÔNG SỐ (ĐÃ FIX FPS -> CODEC) ---
         function toggleStats() {
             showStats = !showStats;
             document.getElementById('btn-stats').classList.toggle('active');
@@ -303,12 +302,10 @@
         function updateStatsData() {
             if (!showStats) return;
 
-            // Quét qua tất cả video đang hiện
             activeStreams.slice(0, currentLayout).forEach(name => {
                 const video = document.getElementById(`vid-${name}`);
                 if (!video) return;
 
-                // 1. Resolution (Lấy từ thẻ video - chuẩn nhất)
                 const resEl = document.getElementById(`res-${name}`);
                 if (video.videoWidth > 0) {
                     resEl.innerText = `${video.videoWidth}x${video.videoHeight}`;
@@ -316,24 +313,32 @@
                     resEl.innerText = "Waiting...";
                 }
                 
-                // 2. Buffer (Sức khỏe đường truyền)
                 const bufEl = document.getElementById(`buf-${name}`);
                 if(video.buffered.length > 0) {
                     const bufLen = video.buffered.end(video.buffered.length-1) - video.currentTime;
                     bufEl.innerText = `${bufLen.toFixed(1)}s`;
-                    bufEl.style.color = bufLen < 5 ? '#ff4444' : '#00ff88'; // Đỏ nếu < 5s
+                    bufEl.style.color = bufLen < 5 ? '#ff4444' : '#00ff88'; 
                 } else {
                     bufEl.innerText = "0s";
                 }
 
-                // 3. Bitrate & FPS (Chỉ lấy được từ HLS.js)
                 const hls = hlsInstances[name];
                 if (hls && hls.levels && hls.currentLevel !== -1 && hls.levels[hls.currentLevel]) {
                     const lvl = hls.levels[hls.currentLevel];
-                    // Bitrate
                     document.getElementById(`bit-${name}`).innerText = `${(lvl.bitrate / 1024).toFixed(0)} kbps`;
-                    // FPS (Ước lượng từ Codec hoặc Metadata)
-                    if(lvl.videoCodec) document.getElementById(`fps-${name}`).innerText = lvl.videoCodec.split('.')[0];
+                    
+                    // Logic nhận diện HEVC / H.264
+                    if(lvl.videoCodec) {
+                        const codecStr = lvl.videoCodec.toLowerCase();
+                        const codecEl = document.getElementById(`codec-${name}`);
+                        if (codecStr.includes('hvc') || codecStr.includes('hev')) {
+                            codecEl.innerText = 'HEVC';
+                            codecEl.style.color = 'var(--hevc-color)';
+                        } else {
+                            codecEl.innerText = 'H.264';
+                            codecEl.style.color = '#fff';
+                        }
+                    }
                 }
             });
         }
@@ -363,7 +368,6 @@
             } else {
                 activeStreams = activeStreams.filter(s => s !== name);
             }
-            // Sắp xếp lại theo thứ tự gốc
             activeStreams.sort((a, b) => MASTER_LIST.indexOf(a) - MASTER_LIST.indexOf(b));
             renderGrid();
         }
@@ -375,24 +379,21 @@
 
         function applyQuality(hls) {
             if (!hls || preferredHeight === -1) {
-                if(hls) hls.currentLevel = -1; // Auto
+                if(hls) hls.currentLevel = -1;
                 return;
             }
             let bestLevel = -1;
             if (hls.levels) {
                 hls.levels.forEach((lvl, idx) => {
-                    // Tìm level có chiều cao <= mức chọn
                     if (lvl.height <= preferredHeight) bestLevel = idx;
                 });
-                if (bestLevel === -1 && hls.levels.length > 0) bestLevel = 0; // Fallback
+                if (bestLevel === -1 && hls.levels.length > 0) bestLevel = 0; 
                 hls.currentLevel = bestLevel;
             }
         }
 
         function setLayout(n) {
             currentLayout = n;
-            document.getElementById('video-grid').className = `layout-${n===4?'2x2':n===9?'3x3':'4x4'}`;
-            // Update UI nút bấm
             document.querySelectorAll('button[id^="btn-"]').forEach(b => b.classList.remove('active'));
             document.getElementById(`btn-${n===4?'2x2':n===9?'3x3':'4x4'}`).classList.add('active');
             renderGrid();
